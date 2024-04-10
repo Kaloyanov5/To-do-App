@@ -98,7 +98,7 @@ body{
 }
 
 .delete-task-btn{
-    background-color: red;
+    background-color: rgb(220, 0, 0);
     border: none;
     color: white;
     border-radius: 3px;
