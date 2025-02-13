@@ -74,18 +74,19 @@ const handleCheckboxChange = async (event) => {
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({id: taskId, done: checkbox.checked})
+            body: JSON.stringify({done: checkbox.checked})
         });
 
         if (response.body === "Task checked done!") {
             const taskElement = tasksDiv.querySelector(`#task-${taskId} .task-text`);
             taskElement.classList.toggle("task-done", checkbox.checked);
-            updateTaskCount();
         } else if(response.body === "Task checked undone!") {
             const taskElement = tasksDiv.querySelector(`#task-${taskId} .task-text`);
             taskElement.classList.toggle("task-done", checkbox.checked);
-            updateTaskCount();
         }
+
+        loadTasks();
+        updateTaskCount();
     } catch (error) {
         console.error("Error updating task:", error);
     }
@@ -105,7 +106,6 @@ const handleDeleteBtn = async (event) => {
         });
 
         if (response.ok) {
-            alert("Task deleted successfully!");
             loadTasks();
             updateTaskCount();
         }
