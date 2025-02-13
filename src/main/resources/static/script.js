@@ -1,57 +1,41 @@
+const API_BASE_URL = "http://localhost:8080/api";
+
 const textInput = document.getElementById("text-input");
 const addBtn = document.getElementById("add-btn");
 const tasksNumberDiv = document.getElementById("task-number");
 const tasksDiv = document.getElementById("tasks-div");
 
-let tasks;
-
-const loadTasksFromLocalStorage = () => {
-    const tasksJSON = localStorage.getItem("tasks");
-    if (tasksJSON){
-        tasks = JSON.parse(tasksJSON);
-    } else{
-        tasks = [];
+const loadTasks = async () => {
+    try {
+        fetch(`${API_BASE_URL}/load`)
+            .then(response => response.json())
+            .then(tasksDb => {
+                tasksDiv.innerHTML = tasksDb.map(task => `
+                    <div class="task" id="task-${task.id}">
+                        <input class="checkbox-task" type="checkbox" data-task-id="checkbox-${task.id}" ${task.done ? "checked" : ""}>
+                        <p class="task-text ${task.done ? 'task-done' : ''}">${task.text}</p>
+                        <button class="delete-task-btn" type="button" data-task-id="delete-${task.id}">X</button>
+                    </div>
+                `).join("");
+            });
+    } catch (error) {
+        console.error("Error fetching tasks:", error);
     }
 }
-loadTasksFromLocalStorage();
-
-const saveTasksToLocalStorage = () => {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
-}
+loadTasks();
 
 const updateTaskCount = () => {
-    const doneTasksCount = tasks.filter((obj) => obj.done === false).length;
-    tasksNumberDiv.textContent = doneTasksCount;
+    try {
+        fetch(`${API_BASE_URL}/count`)
+            .then(response => response.json())
+            .then(count => tasksNumberDiv.textContent = count);
+    } catch (error) {
+        console.error("Error fetching task count:", error);
+    }
 }
 updateTaskCount();
 
-const updateTasks = () => {
-    tasksDiv.innerHTML = "";
-
-    if (tasks.length === 0) return;
-
-    for(let obj of tasks){
-        const doneClass = obj.done ? "task-done" : "";
-        tasksDiv.innerHTML += `
-        <div class="task" id="task-${obj.id}">
-            <input class="checkbox-task" type="checkbox" data-task-id="checkbox-${obj.id}" ${obj.done ? "checked" : ""}>
-            <p class="task-text ${doneClass}">${obj.text}</p>
-            <button class="delete-task-btn" type="button" data-task-id="delete-${obj.id}">X</button>
-        </div>
-        `;
-    }
-}
-updateTasks();
-
-const checkTaskTextAvailable = (tasksArray, curText) => {
-    if (tasksArray.length === 0) return true;
-
-    for (let task of tasksArray){
-        if (task.text === curText) return false;
-    }
-}
-
-addBtn.addEventListener("click", () => {
+addBtn.addEventListener("click", async () => {
     const curText = textInput.value.trim();
     if(!curText){
         alert("Input field is empty!");
@@ -59,61 +43,74 @@ addBtn.addEventListener("click", () => {
         return;
     }
 
+    try {
+        const response = await fetch(`${API_BASE_URL}/add`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({text: curText})
+        });
 
-    if (checkTaskTextAvailable(tasks, curText) === false){
-        alert("Task already exists!");
-        textInput.value = "";
-        return;
+        if(response.ok){
+            textInput.value = "";
+            loadTasks();
+            updateTaskCount();
+        } else {
+            console.error("Error adding task:", response.status);
+        }
+    } catch (error) {
+        console.error("Error adding task:", error);
     }
-
-    tasks.push({
-        text: curText,
-        id: tasks.length + 1,
-        done: false
-    });
-    textInput.value = "";
-    saveTasksToLocalStorage();
-    updateTasks();
-    updateTaskCount();
 });
 
-const handleCheckboxChange = (event) => {
+const handleCheckboxChange = async (event) => {
     const checkbox = event.target;
     const taskId = parseInt((checkbox.dataset.taskId).split("-")[1]);
-  
-    const updatedTaskIndex = tasks.findIndex((task) => task.id === taskId);
-    const taskElement = tasksDiv.querySelector(`#task-${taskId} .task-text`);
-    if (updatedTaskIndex !== -1) {
-        tasks[updatedTaskIndex].done = checkbox.checked;
-        taskElement.classList.toggle("task-done", checkbox.checked);
-        saveTasksToLocalStorage();
-        updateTaskCount();
-    } else {
-        console.error("Task with ID", taskId, "not found");
-    }
 
-    return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/update/${taskId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({id: taskId, done: checkbox.checked})
+        });
+
+        if (response.body === "Task checked done!") {
+            const taskElement = tasksDiv.querySelector(`#task-${taskId} .task-text`);
+            taskElement.classList.toggle("task-done", checkbox.checked);
+            updateTaskCount();
+        } else if(response.body === "Task checked undone!") {
+            const taskElement = tasksDiv.querySelector(`#task-${taskId} .task-text`);
+            taskElement.classList.toggle("task-done", checkbox.checked);
+            updateTaskCount();
+        }
+    } catch (error) {
+        console.error("Error updating task:", error);
+    }
 }
 
-const handleDeleteBtn = (event) => {
+const handleDeleteBtn = async (event) => {
     const button = event.target;
     const taskId = parseInt((button.dataset.taskId).split("-")[1]);
 
-    const updatedTaskIndex = tasks.findIndex((task) => task.id === taskId);
-    if (updatedTaskIndex !== -1) {
-        tasks.splice(updatedTaskIndex, 1);
+    try {
+        const response = await fetch(`${API_BASE_URL}/delete/${taskId}`, {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({id: taskId})
+        });
 
-        const taskElement = tasksDiv.querySelector(`#task-${taskId}`);
-        if (taskElement) {
-            taskElement.remove();
-        } else {
-            console.error("Task element with ID", taskId, "not found");
+        if (response.ok) {
+            alert("Task deleted successfully!");
+            loadTasks();
+            updateTaskCount();
         }
-        saveTasksToLocalStorage();
-        updateTaskCount();
-        updateTasks();
-    } else {
-        console.error("Task with ID", taskId, "not found");
+    } catch (error) {
+        console.error("Error deleting task:", error);
     }
 }
 
@@ -122,5 +119,5 @@ tasksDiv.addEventListener("click", (event) => {
         handleCheckboxChange(event);
     } else if(event.target.classList.contains("delete-task-btn")) {
         handleDeleteBtn(event);
-    } else return;
+    }
 });
